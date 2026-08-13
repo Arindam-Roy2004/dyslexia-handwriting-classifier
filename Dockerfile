@@ -29,10 +29,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5001
 
-# Install Python ML dependencies (CPU PyTorch for fast build & low memory footprint)
+# Install Python ML dependencies using --extra-index-url for PyTorch CPU wheels
 COPY backend/ml/requirements.txt ./ml/
 RUN pip3 install --no-cache-dir --break-system-packages \
-    torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+    torch torchvision --extra-index-url https://download.pytorch.org/whl/cpu \
     && pip3 install --no-cache-dir --break-system-packages \
     opencv-python-headless pillow numpy
 
