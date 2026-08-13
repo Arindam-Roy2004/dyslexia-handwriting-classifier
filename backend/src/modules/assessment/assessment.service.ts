@@ -65,13 +65,13 @@ export class AssessmentService implements IAssessmentService {
     const weightsPath = this.getModelWeightsPath();
     const runnerPath = this.getPythonRunnerPath();
 
-    // 1. Try PyTorch model weights with a fast 6s timeout guard
+    // 1. Try PyTorch model weights with a generous 15s timeout for free cloud instances
     if (fs.existsSync(weightsPath) && fs.existsSync(runnerPath)) {
       try {
         const pyResult = await Promise.race([
           this.runPyTorchInference(buffer, runnerPath, weightsPath),
           new Promise<{ prediction: DyslexiaClass; confidence: number; probabilities: ClassProbabilities; heatmapMatrix?: number[][] } | null>((_, reject) =>
-            setTimeout(() => reject(new Error("PyTorch inference timeout")), 6000)
+            setTimeout(() => reject(new Error("PyTorch inference timeout")), 15000)
           ),
         ]);
 
@@ -103,7 +103,7 @@ export class AssessmentService implements IAssessmentService {
       }
     }
 
-    // 2. Built-in TypeScript Engine (Instantaneous execution)
+    // 2. Built-in TypeScript Engine (Instantaneous fallback)
     const features = this.extractStrokeFeatures(buffer, intendedLetter);
     const probabilities = this.computeClassProbabilities(features, intendedLetter);
     const prediction = this.determineClassification(probabilities);
@@ -147,7 +147,7 @@ export class AssessmentService implements IAssessmentService {
         weightsPath,
       ], {
         cwd: path.dirname(runnerPath),
-        timeout: 5500,
+        timeout: 14500,
       });
 
       const parsed = JSON.parse(stdout.trim());
