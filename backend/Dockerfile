@@ -1,27 +1,48 @@
-FROM node:22-alpine AS builder
+FROM node:20-bookworm-slim AS base
+
+# Install Python 3, pip, and required system libraries for OpenCV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY package*.json ./
+# Stage 1: Build TypeScript backend
+FROM base AS builder
+
+COPY package*.json tsconfig.json ./
 RUN npm ci
 
-COPY tsconfig.json ./
 COPY src ./src
 COPY server.ts ./
-
 RUN npm run build
 
-FROM node:22-alpine AS runner
+# Stage 2: Production Runner
+FROM base AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=5001
 
+# Install Python ML dependencies (CPU optimized for fast build & low memory footprint)
+COPY ml/requirements.txt ./ml/
+RUN pip3 install --no-cache-dir --break-system-packages \
+    torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+    && pip3 install --no-cache-dir --break-system-packages \
+    opencv-python-headless pillow numpy
+
 COPY package*.json ./
 RUN npm ci --only=production
 
+# Copy compiled backend code, ML scripts, and models
 COPY --from=builder /app/dist ./dist
+COPY ml ./ml
+COPY models ./models
 
 EXPOSE 5001
 
