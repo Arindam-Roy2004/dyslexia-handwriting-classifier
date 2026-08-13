@@ -18,13 +18,35 @@ const execFileAsync = promisify(execFile);
 /**
  * Dyslexia Assessment Service
  * Dual-Engine:
- * 1. PyTorch Neural Network Runner (Executes `ml/inference.py` when `models/dyslexia_efficientnet.pth` is present)
- * 2. Standalone TypeScript Stroke Geometry Engine (Active by default & ultra-low latency fallback)
+ * 1. PyTorch Neural Network Runner (Executes `ml/inference.py` with `models/dyslexia_efficientnet.pth`)
+ * 2. Standalone TypeScript Stroke Geometry Engine (Active by default & fallback)
  */
 export class AssessmentService implements IAssessmentService {
   private readonly REVERSAL_SENSITIVITY_THRESHOLD = 0.35;
-  private readonly MODEL_WEIGHTS_PATH = path.resolve("models/dyslexia_efficientnet.pth");
-  private readonly PYTHON_RUNNER_PATH = path.resolve("ml/inference.py");
+
+  private getModelWeightsPath(): string {
+    const candidates = [
+      path.resolve("models/dyslexia_efficientnet.pth"),
+      path.resolve("backend/models/dyslexia_efficientnet.pth"),
+      path.join(process.cwd(), "models/dyslexia_efficientnet.pth"),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p;
+    }
+    return candidates[0];
+  }
+
+  private getPythonRunnerPath(): string {
+    const candidates = [
+      path.resolve("ml/inference.py"),
+      path.resolve("backend/ml/inference.py"),
+      path.join(process.cwd(), "ml/inference.py"),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p;
+    }
+    return candidates[0];
+  }
 
   async predictFromBase64(
     base64Data: string,
@@ -40,13 +62,16 @@ export class AssessmentService implements IAssessmentService {
     _mimeType: string,
     intendedLetter: string = "b",
   ): Promise<AssessmentResult> {
-    // 1. Try PyTorch model weights with a fast 5s timeout guard
-    if (fs.existsSync(this.MODEL_WEIGHTS_PATH)) {
+    const weightsPath = this.getModelWeightsPath();
+    const runnerPath = this.getPythonRunnerPath();
+
+    // 1. Try PyTorch model weights with a fast 6s timeout guard
+    if (fs.existsSync(weightsPath) && fs.existsSync(runnerPath)) {
       try {
         const pyResult = await Promise.race([
-          this.runPyTorchInference(buffer),
+          this.runPyTorchInference(buffer, runnerPath, weightsPath),
           new Promise<{ prediction: DyslexiaClass; confidence: number; probabilities: ClassProbabilities; heatmapMatrix?: number[][] } | null>((_, reject) =>
-            setTimeout(() => reject(new Error("PyTorch inference timeout")), 5000)
+            setTimeout(() => reject(new Error("PyTorch inference timeout")), 6000)
           ),
         ]);
 
@@ -102,7 +127,11 @@ export class AssessmentService implements IAssessmentService {
   /**
    * Invokes Python PyTorch inference runner with temporary image file
    */
-  private async runPyTorchInference(buffer: Buffer): Promise<{
+  private async runPyTorchInference(
+    buffer: Buffer,
+    runnerPath: string,
+    weightsPath: string,
+  ): Promise<{
     prediction: DyslexiaClass;
     confidence: number;
     probabilities: ClassProbabilities;
@@ -113,12 +142,12 @@ export class AssessmentService implements IAssessmentService {
 
     try {
       const { stdout } = await execFileAsync("python3", [
-        this.PYTHON_RUNNER_PATH,
+        runnerPath,
         tempFilePath,
-        this.MODEL_WEIGHTS_PATH,
+        weightsPath,
       ], {
-        cwd: path.resolve("ml"),
-        timeout: 4500,
+        cwd: path.dirname(runnerPath),
+        timeout: 5500,
       });
 
       const parsed = JSON.parse(stdout.trim());
