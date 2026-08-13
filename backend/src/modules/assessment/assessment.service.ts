@@ -140,8 +140,9 @@ export class AssessmentService implements IAssessmentService {
       }
       return null;
     } catch (err: any) {
-      console.error("[PyTorch Exec Error]:", err);
-      throw ApiError.internal(`PyTorch Model Error: ${err.message || err}`);
+      const errDetails = err.stderr || err.stdout || err.message || err;
+      console.error("[PyTorch Exec Error]:", errDetails);
+      throw ApiError.internal(`PyTorch Model Error: ${errDetails}`);
     } finally {
       if (fs.existsSync(tempFilePath)) {
         await fs.promises.unlink(tempFilePath).catch(() => {});

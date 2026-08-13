@@ -1,13 +1,41 @@
 import os
 import sys
 import json
+
+# Ensure ml directory is always in sys.path for relative imports
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
+
 import torch
 from PIL import Image
 import numpy as np
 
 from model import DyslexiaModel
-from preprocessing import get_inference_transforms
+from preprocessing import preprocess_image_to_tensor
 from gradcam import GradCAM
+
+# Global cached model to avoid reloading weights on every inference call
+CACHED_MODEL = None
+CACHED_MODEL_PATH = None
+
+def get_model(model_path: str = "models/dyslexia_efficientnet.pth"):
+    global CACHED_MODEL, CACHED_MODEL_PATH
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if CACHED_MODEL is not None and CACHED_MODEL_PATH == model_path:
+        return CACHED_MODEL, device
+
+    model = DyslexiaModel().to(device)
+
+    if os.path.exists(model_path):
+        state = torch.load(model_path, map_location=device)
+        model.load_state_dict(state["model"] if isinstance(state, dict) and "model" in state else state)
+    
+    model.eval()
+    CACHED_MODEL = model
+    CACHED_MODEL_PATH = model_path
+    return model, device
 
 def predict_single_letter(
     image_path: str,
@@ -15,17 +43,10 @@ def predict_single_letter(
     reversal_threshold: float = 0.35,
     explain: bool = True
 ):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = DyslexiaModel().to(device)
-
-    if os.path.exists(model_path):
-        state = torch.load(model_path, map_location=device)
-        model.load_state_dict(state["model"] if "model" in state else state)
-    
-    model.eval()
+    model, device = get_model(model_path)
 
     original_img = Image.open(image_path).convert("RGB")
-    tensor = get_inference_transforms()(original_img).unsqueeze(0).to(device)
+    tensor = preprocess_image_to_tensor(original_img).unsqueeze(0).to(device)
 
     if explain:
         gradcam = GradCAM(model)
@@ -80,7 +101,13 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         img_path = sys.argv[1]
         mod_path = sys.argv[2] if len(sys.argv) > 2 else "models/dyslexia_efficientnet.pth"
-        res = predict_single_letter(img_path, mod_path)
-        print(json.dumps(res))
+        try:
+            res = predict_single_letter(img_path, mod_path)
+            print(json.dumps(res))
+        except Exception as e:
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            sys.exit(1)
     else:
         print(json.dumps({"error": "Missing image_path argument"}))
+        sys.exit(1)

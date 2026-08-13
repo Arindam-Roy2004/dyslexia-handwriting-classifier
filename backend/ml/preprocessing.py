@@ -2,8 +2,6 @@ import cv2
 import numpy as np
 from PIL import Image
 import torch
-import torchvision.transforms as T
-import torchvision.transforms.functional as TF
 
 class ExtractCharacter:
     """Detect handwritten character bounding box and crop tightly."""
@@ -51,22 +49,32 @@ class SquarePad:
     def __call__(self, image: Image.Image) -> Image.Image:
         w, h = image.size
         max_wh = max(w, h)
+        if max_wh <= 0:
+            return image
+        padded = Image.new("RGB", (max_wh, max_wh), (255, 255, 255))
         hp = (max_wh - w) // 2
         vp = (max_wh - h) // 2
-        padding = (hp, vp, hp, vp)
-        return TF.pad(image, padding, fill=(255, 255, 255))
+        padded.paste(image, (hp, vp))
+        return padded
 
 
-def get_inference_transforms():
-    """Standardized transform pipeline for 112x112 character inference."""
-    return T.Compose([
-        ExtractCharacter(),
-        NormalizeInk(),
-        SquarePad(),
-        T.Resize((112, 112)),
-        T.ToTensor(),
-        T.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        )
-    ])
+def preprocess_image_to_tensor(image: Image.Image) -> torch.Tensor:
+    """
+    Standardized pure PyTorch + PIL transform pipeline for 112x112 character inference.
+    Exact match for torchvision: Resize((112, 112)) -> ToTensor() -> Normalize()
+    """
+    img = ExtractCharacter()(image)
+    img = NormalizeInk()(img)
+    img = SquarePad()(img)
+    img = img.resize((112, 112), Image.BILINEAR)
+
+    # Convert to FloatTensor (3, 112, 112) normalized [0, 1]
+    arr = np.array(img, dtype=np.float32) / 255.0
+    if len(arr.shape) == 2:
+        arr = np.stack([arr] * 3, axis=-1)
+    tensor = torch.from_numpy(arr.transpose((2, 0, 1))).float()
+
+    # Normalize with ImageNet stats
+    mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+    return (tensor - mean) / std
