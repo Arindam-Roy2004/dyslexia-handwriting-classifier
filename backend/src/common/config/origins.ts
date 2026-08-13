@@ -2,6 +2,7 @@ export const ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "https://frontend-five-flame-71.vercel.app",
+  "https://dyslexia-handwriting-classifier.onrender.com",
 ];
 
 export function isAllowedBrowserOrigin(origin: string): boolean {
@@ -10,6 +11,10 @@ export function isAllowedBrowserOrigin(origin: string): boolean {
   }
   // Allow all Vercel preview and production deployments
   if (origin.endsWith(".vercel.app")) {
+    return true;
+  }
+  // Allow Render domains
+  if (origin.endsWith(".onrender.com")) {
     return true;
   }
   return false;

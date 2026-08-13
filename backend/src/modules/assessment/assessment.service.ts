@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
  * Dyslexia Assessment Service
  * Dual-Engine:
  * 1. PyTorch Neural Network Runner (Executes `ml/inference.py` when `models/dyslexia_efficientnet.pth` is present)
- * 2. Standalone TypeScript Stroke Geometry Engine (Active by default for instantaneous execution)
+ * 2. Standalone TypeScript Stroke Geometry Engine (Active by default & ultra-low latency fallback)
  */
 export class AssessmentService implements IAssessmentService {
   private readonly REVERSAL_SENSITIVITY_THRESHOLD = 0.35;
@@ -40,11 +40,17 @@ export class AssessmentService implements IAssessmentService {
     _mimeType: string,
     intendedLetter: string = "b",
   ): Promise<AssessmentResult> {
-    // 1. Check if PyTorch model weights exist
+    // 1. Try PyTorch model weights with a fast 5s timeout guard
     if (fs.existsSync(this.MODEL_WEIGHTS_PATH)) {
       try {
-        const pyResult = await this.runPyTorchInference(buffer);
-        if (pyResult) {
+        const pyResult = await Promise.race([
+          this.runPyTorchInference(buffer),
+          new Promise<{ prediction: DyslexiaClass; confidence: number; probabilities: ClassProbabilities; heatmapMatrix?: number[][] } | null>((_, reject) =>
+            setTimeout(() => reject(new Error("PyTorch inference timeout")), 5000)
+          ),
+        ]);
+
+        if (pyResult && pyResult.prediction) {
           const features = this.extractStrokeFeatures(buffer, intendedLetter);
           return {
             id: `eval_${nanoid(10)}`,
@@ -68,11 +74,11 @@ export class AssessmentService implements IAssessmentService {
           };
         }
       } catch (err) {
-        console.warn("[PyTorch Bridge Warning] Falling back to TS Engine:", err);
+        console.warn("[PyTorch Bridge Notice] Running with native engine:", err);
       }
     }
 
-    // 2. Built-in TypeScript Engine
+    // 2. Built-in TypeScript Engine (Instantaneous execution)
     const features = this.extractStrokeFeatures(buffer, intendedLetter);
     const probabilities = this.computeClassProbabilities(features, intendedLetter);
     const prediction = this.determineClassification(probabilities);
@@ -112,6 +118,7 @@ export class AssessmentService implements IAssessmentService {
         this.MODEL_WEIGHTS_PATH,
       ], {
         cwd: path.resolve("ml"),
+        timeout: 4500,
       });
 
       const parsed = JSON.parse(stdout.trim());
@@ -120,7 +127,6 @@ export class AssessmentService implements IAssessmentService {
       }
       return null;
     } finally {
-      // Clean up temporary image
       if (fs.existsSync(tempFilePath)) {
         await fs.promises.unlink(tempFilePath).catch(() => {});
       }

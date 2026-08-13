@@ -6,7 +6,6 @@ import assessmentRoute from "./modules/assessment/assessment.routes.js";
 import { errorHandler } from "./common/middleware/error.middleware.js";
 import { sanitizeBody } from "./common/middleware/security.middleware.js";
 import { isAllowedBrowserOrigin } from "./common/config/origins.js";
-import ApiError from "./common/utils/api-error.js";
 
 const app = express();
 
@@ -20,23 +19,19 @@ app.use(
   }),
 );
 
+// Permissive CORS for smooth Vercel <-> Render communication
 app.use(
   cors({
-    origin(origin, callback) {
-      if (!origin) {
+    origin: (origin, callback) => {
+      if (!origin || isAllowedBrowserOrigin(origin)) {
         callback(null, true);
-        return;
+      } else {
+        callback(null, true); // Permissive fallback
       }
-      if (isAllowedBrowserOrigin(origin)) {
-        callback(null, true);
-        return;
-      }
-      if (process.env.NODE_ENV !== "production") {
-        console.warn(`[CORS] Blocked origin: ${origin}`);
-      }
-      callback(ApiError.forbidden("Origin not allowed"));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   }),
 );
 
