@@ -1,152 +1,95 @@
 @import "tailwindcss";
 
-@theme {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-card-border: hsl(var(--card-border));
-
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-primary-strong: hsl(var(--primary-strong));
-
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-:root {
-  /* Warm editorial light theme */
-  --background: 40 33% 96%;
-  --foreground: 222 16% 20%;
-  --border: 222 16% 28%;
-  --input: 222 16% 28%;
-  --ring: 182 40% 44%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 222 16% 20%;
-  --card-border: 222 16% 28%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 16% 20%;
-
-  --primary: 182 40% 44%;
-  --primary-foreground: 216 30% 10%;
-  --primary-strong: 184 42% 27%;
-
-  --secondary: 40 24% 92%;
-  --secondary-foreground: 222 16% 20%;
-
-  --muted: 40 30% 94%;
-  --muted-foreground: 218 12% 38%;
-
-  --accent: 186 38% 82%;
-  --accent-foreground: 222 22% 14%;
-
-  --destructive: 0 72% 48%;
-  --destructive-foreground: 0 0% 98%;
-
-  --radius: 0.5rem;
-  --shadow-2xs: 0 1px 2px hsl(220 18% 12% / 0.05);
-  --shadow-xs: 0 1px 3px hsl(220 18% 12% / 0.07);
-  --shadow-sm: 0 4px 10px hsl(220 18% 12% / 0.07);
-  --shadow: 0 8px 20px hsl(220 18% 12% / 0.08);
-}
-
-.dark {
-  /* High-craft deep charcoal dark theme */
-  --background: 240 7% 8%;
-  --foreground: 240 5% 96%;
-  --border: 240 6% 18%;
-  --input: 240 6% 18%;
-  --ring: 182 60% 48%;
-
-  --card: 240 6% 11.5%;
-  --card-foreground: 240 5% 96%;
-  --card-border: 240 6% 18%;
-
-  --popover: 240 6% 11%;
-  --popover-foreground: 240 5% 96%;
-
-  --primary: 182 60% 46%;
-  --primary-foreground: 240 7% 8%;
-  --primary-strong: 182 58% 62%;
-
-  --secondary: 240 6% 14%;
-  --secondary-foreground: 240 5% 96%;
-
-  --muted: 240 6% 14%;
-  --muted-foreground: 240 5% 65%;
-
-  --accent: 240 6% 16%;
-  --accent-foreground: 240 5% 96%;
-
-  --destructive: 0 75% 55%;
-  --destructive-foreground: 240 5% 98%;
-
-  --shadow-2xs: 0 1px 2px hsl(240 10% 3% / 0.3);
-  --shadow-xs: 0 2px 6px hsl(240 10% 3% / 0.34);
-  --shadow-sm: 0 8px 20px hsl(240 10% 3% / 0.38);
-  --shadow: 0 12px 28px hsl(240 10% 3% / 0.42);
-}
-
 @layer base {
-  * {
-    border-color: hsl(var(--border));
+  :root {
+    --background: 40 33% 96%;
+    --foreground: 222 16% 20%;
+    --card: 40 25% 98%;
+    --card-foreground: 222 16% 20%;
+    --popover: 40 25% 98%;
+    --popover-foreground: 222 16% 20%;
+    --primary: 182 40% 44%;
+    --primary-foreground: 0 0% 100%;
+    --primary-strong: 184 42% 27%;
+    --secondary: 40 18% 90%;
+    --secondary-foreground: 222 16% 20%;
+    --muted: 40 18% 91%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 183 40% 85%;
+    --accent-foreground: 184 42% 22%;
+    --destructive: 358 68% 54%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 38 16% 83%;
+    --input: 38 16% 83%;
+    --ring: 182 40% 44%;
+    --radius: 0.5rem;
+
+    --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
   }
 
-  body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
+  .dark {
+    --background: 240 7% 8%;
+    --foreground: 240 5% 96%;
+    --card: 240 6% 11%;
+    --card-foreground: 240 5% 96%;
+    --popover: 240 6% 11%;
+    --popover-foreground: 240 5% 96%;
+    --primary: 182 45% 48%;
+    --primary-foreground: 240 7% 8%;
+    --primary-strong: 182 45% 58%;
+    --secondary: 240 5% 16%;
+    --secondary-foreground: 240 5% 96%;
+    --muted: 240 5% 16%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 182 35% 20%;
+    --accent-foreground: 182 45% 75%;
+    --destructive: 358 68% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5% 18%;
+    --input: 240 5% 18%;
+    --ring: 182 45% 48%;
+
+    --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+    --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.45), 0 1px 2px -1px rgba(0, 0, 0, 0.45);
   }
 }
 
-@layer components {
-  /* Distinctive uppercase micro-label */
-  .label-mono {
-    font-family: var(--font-mono), ui-monospace, monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.09em;
-    font-weight: 600;
-  }
+body {
+  font-family: var(--font-lexend), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.011em;
+}
 
-  .container-app {
-    margin-inline: auto;
-    width: 100%;
-    max-width: 1180px;
-    padding-inline: 1rem;
-  }
-  @media (min-width: 640px) {
-    .container-app { padding-inline: 1.5rem; }
-  }
-  @media (min-width: 1024px) {
-    .container-app { padding-inline: 2rem; }
-  }
+/* Monospace telemetry and labels */
+.font-mono,
+code,
+pre {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
 
-  .eyebrow {
-    font-family: var(--font-mono), ui-monospace, monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-size: 0.6875rem;
-    color: hsl(var(--primary-strong));
-  }
+/* Custom Micro-Typography Tokens */
+.label-mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.eyebrow {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: hsl(var(--primary));
+}
+
+.container-app {
+  width: 100%;
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
 }
