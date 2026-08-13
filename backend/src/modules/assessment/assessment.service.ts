@@ -12,14 +12,14 @@ import {
   PresetSample,
   StrokeFeatureMetrics,
 } from "./assessment.types.js";
+import ApiError from "../../common/utils/api-error.js";
 
 const execFileAsync = promisify(execFile);
 
 /**
  * Dyslexia Assessment Service
- * Dual-Engine:
- * 1. PyTorch Neural Network Runner (Executes `ml/inference.py` with `models/dyslexia_efficientnet.pth`)
- * 2. Standalone TypeScript Stroke Geometry Engine (Real pixel analysis fallback)
+ * Pure PyTorch Execution:
+ * Strictly runs `ml/inference.py` with `models/dyslexia_efficientnet.pth`
  */
 export class AssessmentService implements IAssessmentService {
   private readonly REVERSAL_SENSITIVITY_THRESHOLD = 0.35;
@@ -65,61 +65,41 @@ export class AssessmentService implements IAssessmentService {
     const weightsPath = this.getModelWeightsPath();
     const runnerPath = this.getPythonRunnerPath();
 
-    // 1. Try PyTorch model weights
-    if (fs.existsSync(weightsPath) && fs.existsSync(runnerPath)) {
-      try {
-        const pyResult = await Promise.race([
-          this.runPyTorchInference(buffer, runnerPath, weightsPath),
-          new Promise<{ prediction: DyslexiaClass; confidence: number; probabilities: ClassProbabilities; heatmapMatrix?: number[][] } | null>((_, reject) =>
-            setTimeout(() => reject(new Error("PyTorch inference timeout")), 15000)
-          ),
-        ]);
-
-        if (pyResult && pyResult.prediction) {
-          const features = this.extractStrokeFeatures(buffer, intendedLetter);
-          return {
-            id: `eval_${nanoid(10)}`,
-            prediction: pyResult.prediction,
-            confidence: pyResult.confidence,
-            probabilities: pyResult.probabilities,
-            features,
-            heatmapMatrix:
-              pyResult.heatmapMatrix && pyResult.heatmapMatrix.length > 0
-                ? pyResult.heatmapMatrix
-                : this.generateGradCamMatrix(features, pyResult.prediction),
-            gradCamSummary: this.generateGradCamExplanation(
-              pyResult.prediction,
-              features,
-            ),
-            recommendation: this.generateDirectRecommendation(
-              pyResult.prediction,
-              intendedLetter,
-            ),
-            createdAt: new Date().toISOString(),
-          };
-        }
-      } catch (err) {
-        console.warn("[PyTorch Bridge Notice] Running with native engine:", err);
-      }
+    if (!fs.existsSync(weightsPath)) {
+      throw ApiError.internal(`PyTorch model weights not found at ${weightsPath}`);
     }
 
-    // 2. Built-in TypeScript Engine (Dynamic Real Pixel Feature Fallback)
+    if (!fs.existsSync(runnerPath)) {
+      throw ApiError.internal(`Python inference runner not found at ${runnerPath}`);
+    }
+
+    // Execute PyTorch neural network via Python bridge
+    const pyResult = await this.runPyTorchInference(buffer, runnerPath, weightsPath);
+
+    if (!pyResult || !pyResult.prediction) {
+      throw ApiError.internal("PyTorch model execution failed to return prediction");
+    }
+
     const features = this.extractStrokeFeatures(buffer, intendedLetter);
-    const probabilities = this.computeClassProbabilities(features, intendedLetter);
-    const prediction = this.determineClassification(probabilities);
-    const heatmapMatrix = this.generateGradCamMatrix(features, prediction);
-    const gradCamSummary = this.generateGradCamExplanation(prediction, features);
-    const recommendation = this.generateDirectRecommendation(prediction, intendedLetter);
 
     return {
       id: `eval_${nanoid(10)}`,
-      prediction,
-      confidence: probabilities[prediction],
-      probabilities,
+      prediction: pyResult.prediction,
+      confidence: pyResult.confidence,
+      probabilities: pyResult.probabilities,
       features,
-      heatmapMatrix,
-      gradCamSummary,
-      recommendation,
+      heatmapMatrix:
+        pyResult.heatmapMatrix && pyResult.heatmapMatrix.length > 0
+          ? pyResult.heatmapMatrix
+          : this.generateGradCamMatrix(features, pyResult.prediction),
+      gradCamSummary: this.generateGradCamExplanation(
+        pyResult.prediction,
+        features,
+      ),
+      recommendation: this.generateDirectRecommendation(
+        pyResult.prediction,
+        intendedLetter,
+      ),
       createdAt: new Date().toISOString(),
     };
   }
@@ -147,7 +127,7 @@ export class AssessmentService implements IAssessmentService {
         weightsPath,
       ], {
         cwd: path.dirname(runnerPath),
-        timeout: 14500,
+        timeout: 25000,
       });
 
       if (stderr && stderr.trim().length > 0) {
@@ -159,9 +139,9 @@ export class AssessmentService implements IAssessmentService {
         return parsed;
       }
       return null;
-    } catch (err) {
+    } catch (err: any) {
       console.error("[PyTorch Exec Error]:", err);
-      return null;
+      throw ApiError.internal(`PyTorch Model Error: ${err.message || err}`);
     } finally {
       if (fs.existsSync(tempFilePath)) {
         await fs.promises.unlink(tempFilePath).catch(() => {});
@@ -169,16 +149,11 @@ export class AssessmentService implements IAssessmentService {
     }
   }
 
-  /**
-   * Dynamic pixel-based feature analysis derived from image buffer content
-   */
   private extractStrokeFeatures(
     buffer: Buffer,
     intendedLetter: string,
   ): StrokeFeatureMetrics {
     const bufLen = buffer.length;
-    
-    // Sample buffer bytes dynamically across the entire image payload
     let leftPixels = 0;
     let rightPixels = 0;
     let totalDark = 0;
@@ -187,7 +162,7 @@ export class AssessmentService implements IAssessmentService {
     const sampleStep = Math.max(1, Math.floor(bufLen / 1000));
     for (let i = 100; i < bufLen - 10; i += sampleStep) {
       const val = buffer[i];
-      if (val < 180) { // dark ink pixel candidate
+      if (val < 180) {
         totalDark++;
         if ((i % 100) < 50) {
           leftPixels++;
@@ -220,44 +195,6 @@ export class AssessmentService implements IAssessmentService {
       inkDensity,
       symmetryRatio,
     };
-  }
-
-  private computeClassProbabilities(
-    features: StrokeFeatureMetrics,
-    intendedLetter: string,
-  ): ClassProbabilities {
-    const letter = intendedLetter.toLowerCase().trim();
-    let probReversal = 0.15;
-    let probCorrected = 0.1;
-    let probNormal = 0.75;
-
-    if (letter === "b" && features.loopOrientation === "left") {
-      probReversal = 0.78;
-      probNormal = 0.14;
-      probCorrected = 0.08;
-    } else if (letter === "d" && features.loopOrientation === "right") {
-      probReversal = 0.82;
-      probNormal = 0.11;
-      probCorrected = 0.07;
-    } else if (features.jitterScore > 0.65 || features.inkDensity > 0.75) {
-      probCorrected = 0.72;
-      probNormal = 0.18;
-      probReversal = 0.1;
-    }
-
-    const total = probNormal + probReversal + probCorrected;
-    return {
-      Normal: Number((probNormal / total).toFixed(4)),
-      Reversal: Number((probReversal / total).toFixed(4)),
-      Corrected: Number((probCorrected / total).toFixed(4)),
-    };
-  }
-
-  private determineClassification(probs: ClassProbabilities): DyslexiaClass {
-    if (probs.Reversal >= this.REVERSAL_SENSITIVITY_THRESHOLD) {
-      return "Reversal";
-    }
-    return probs.Normal >= probs.Corrected ? "Normal" : "Corrected";
   }
 
   private generateGradCamMatrix(
