@@ -1,25 +1,16 @@
-const DEFAULT_ALLOWED_ORIGINS = [
+export const ALLOWED_ORIGINS = [
   "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
   "http://127.0.0.1:3000",
-  "http://127.0.0.1:5173",
+  "https://frontend-five-flame-71.vercel.app",
 ];
 
 export function isAllowedBrowserOrigin(origin: string): boolean {
-  if (DEFAULT_ALLOWED_ORIGINS.includes(origin)) {
+  if (ALLOWED_ORIGINS.includes(origin)) {
     return true;
   }
-
-  const customClientUrl = process.env.CLIENT_URL;
-  if (customClientUrl && origin === customClientUrl) {
+  // Allow all Vercel preview and production deployments
+  if (origin.endsWith(".vercel.app")) {
     return true;
   }
-
-  // Allow vercel / preview origins in non-strict development
-  if (origin.endsWith(".vercel.app") || origin.includes("localhost")) {
-    return true;
-  }
-
   return false;
 }

@@ -12,8 +12,9 @@ const app = express();
 
 app.set("trust proxy", 1);
 
+const helmetMiddleware = typeof helmet === "function" ? helmet : (helmet as any).default || helmet;
 app.use(
-  helmet({
+  helmetMiddleware({
     crossOriginResourcePolicy: { policy: "cross-origin" },
     contentSecurityPolicy: false,
   }),
@@ -50,6 +51,14 @@ app.get("/health", (_req, res) => {
     service: "neurotrace-dyslexia-api",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "neurotrace-dyslexia-api",
+    message: "NeuroTrace Dyslexia Screening API is operational.",
   });
 });
 
